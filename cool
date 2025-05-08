@@ -1,0 +1,124 @@
+--// MASSIVE CLEANUP FIRST
+for _, v in ipairs(workspace:GetChildren()) do
+    if v:IsA("Part") and v.Name == "DetectionBox" then
+        v:Destroy()
+    end
+end
+
+for _, gui in ipairs(game.Players.LocalPlayer:WaitForChild("PlayerGui"):GetChildren()) do
+    if gui:IsA("ScreenGui") and gui.Name == "DetectionToggleGui" then
+        gui:Destroy()
+    end
+end
+
+--// Variables
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+
+local soccerBall = workspace:WaitForChild("FootballField"):WaitForChild("SoccerBall")
+local kickBallRemote = game:GetService("ReplicatedStorage"):WaitForChild("KickBall")
+
+local runService = game:GetService("RunService")
+
+local detectionEnabled = true
+local lastKickTime = 0
+local boxSize = 10 -- default size
+
+--// Create the detection box
+local box = Instance.new("Part")
+box.Name = "DetectionBox"
+box.Size = Vector3.new(boxSize, boxSize, boxSize)
+box.Anchored = true
+box.CanCollide = false
+box.Transparency = 0.8
+box.Color = Color3.new(1, 1, 1)
+box.Material = Enum.Material.ForceField
+box.Parent = workspace
+
+--// Create the GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "DetectionToggleGui"
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 100, 0, 30)
+toggleButton.Position = UDim2.new(0, 10, 0, 10)
+toggleButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+toggleButton.TextColor3 = Color3.new(1, 1, 1)
+toggleButton.Text = "Detection: ON"
+toggleButton.Parent = screenGui
+
+toggleButton.MouseButton1Click:Connect(function()
+    detectionEnabled = not detectionEnabled
+    toggleButton.Text = detectionEnabled and "Detection: ON" or "Detection: OFF"
+end)
+
+local sizeBox = Instance.new("TextBox")
+sizeBox.Size = UDim2.new(0, 100, 0, 30)
+sizeBox.Position = UDim2.new(0, 10, 0, 50)
+sizeBox.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+sizeBox.TextColor3 = Color3.new(1, 1, 1)
+sizeBox.Text = tostring(boxSize)
+sizeBox.PlaceholderText = "Box Size"
+sizeBox.Parent = screenGui
+
+sizeBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        local newSize = tonumber(sizeBox.Text)
+        if newSize and newSize > 0 then
+            boxSize = newSize
+            box.Size = Vector3.new(boxSize, boxSize, boxSize)
+        else
+            sizeBox.Text = tostring(boxSize) -- reset to correct size if invalid
+        end
+    end
+end)
+
+--// Helper
+local function isBallInBox()
+    local ballPos = soccerBall.Position
+    local myPos = hrp.Position
+
+    local halfSize = boxSize / 2
+
+    local dx = math.abs(ballPos.X - myPos.X)
+    local dy = math.abs(ballPos.Y - myPos.Y)
+    local dz = math.abs(ballPos.Z - myPos.Z)
+
+    return dx <= halfSize and dy <= halfSize and dz <= halfSize
+end
+
+--// Main loops
+runService.RenderStepped:Connect(function()
+    if hrp and hrp.Parent then
+        box.Position = hrp.Position
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.1) do
+        if detectionEnabled and soccerBall and soccerBall.Parent and isBallInBox() then
+            local currentTime = tick()
+            if currentTime - lastKickTime >= 1 then
+                lastKickTime = currentTime
+
+                local ballPos = soccerBall.Position
+
+                -- MASSIVE kick
+                local kickDirection = Vector3.new(0, 50000, 0)
+                local kickPower = 10000
+
+                local args = {
+                    Vector3.new(ballPos.X, ballPos.Y, ballPos.Z),
+                    kickDirection,
+                    Vector3.zero,
+                    kickPower,
+                    "djhtelkds"
+                }
+
+                kickBallRemote:FireServer(unpack(args))
+            end
+        end
+    end
+end)
